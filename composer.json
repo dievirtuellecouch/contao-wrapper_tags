@@ -20,7 +20,10 @@
   "autoload": {
     "psr-4": {
       "Zmyslny\\WrapperTags\\": "src/"
-    }
+    },
+    "classmap": [
+      "src/ContaoManager/"
+    ]
   },
   "extra": {
     "contao-manager-plugin": "Zmyslny\\\\WrapperTags\\\\ContaoManager\\\\Plugin"
