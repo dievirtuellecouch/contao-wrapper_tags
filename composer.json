@@ -24,8 +24,5 @@
   },
   "extra": {
     "contao-manager-plugin": "Zmyslny\\\\WrapperTags\\\\ContaoManager\\\\Plugin"
-  },
-  "replace": {
-    "dvc/contao-wrapper_tags": "*"
   }
 }
