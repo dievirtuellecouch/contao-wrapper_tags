@@ -1,6 +1,6 @@
 {
   "name": "dvc/contao-wrapper_tags",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "contao-bundle",
   "description": "Wrapper Tags for Contao 5 (bundle)",
   "keywords": ["contao", "wrapper", "tags"],
@@ -21,6 +21,9 @@
     "psr-4": {
       "Zmyslny\\WrapperTags\\": "src/"
     },
+    "files": [
+      "src/ContaoManager/Plugin.php"
+    ],
     "classmap": [
       "src/ContaoManager/"
     ]
