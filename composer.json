@@ -1,5 +1,5 @@
 {
-  "name": "dvc/contao-wrapper-tags",
+  "name": "dvc/contao-wrapper_tags",
   "version": "1.0.0",
   "type": "contao-bundle",
   "description": "Wrapper Tags for Contao 5 (bundle)",
