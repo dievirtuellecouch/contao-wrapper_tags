@@ -1,5 +1,5 @@
-<div class="wt-opening-tags <?php echo $this->version ?>">
-  <div class="tl_gray">Wrapper tags (Opening tags)</div>
+<div class="wt-complete-tags <?php echo $this->version ?>">
+  <div class="tl_gray">Wrapper tags (Complete tags)</div>
   <?php if ($this->tags): ?>
     <?php foreach ($this->tags as $tag): ?>
       <?php
@@ -14,8 +14,9 @@
             }
             if (!empty($pairs)) { $attrStr = ' ' . implode(' ', $pairs); }
         }
+        $closing = empty($tag['void']) ? ' &lt;/' . $tag['tag'] . '&gt;' : '';
       ?>
-      <div>&lt;<?php echo $tag['tag'] ?><?php if ($classes !== ''): ?>	class:<?php echo $classes ?><?php endif; ?><?php echo $attrStr ? '\t' . $attrStr : '' ?>&gt;</div>
+      <div>&lt;<?php echo $tag['tag'] ?><?php if ($classes !== ''): ?>	class:<?php echo $classes ?><?php endif; ?><?php echo $attrStr ? '\t' . $attrStr : '' ?>&gt;<?php echo $closing ?></div>
     <?php endforeach ?>
   <?php else: ?>
     <div class="tl_red corrupted"><?php echo $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] ?></div>
@@ -25,3 +26,4 @@
     <div class="tl_gray"><?php echo $this->wildcard ?></div>
   <?php endif ?>
 </div>
+

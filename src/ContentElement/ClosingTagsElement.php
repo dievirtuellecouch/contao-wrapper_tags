@@ -13,6 +13,7 @@ namespace Zmyslny\WrapperTags\ContentElement;
 use Contao\BackendTemplate;
 use Contao\ContentElement;
 use Contao\StringUtil;
+use Contao\System;
 
 class ClosingTagsElement extends ContentElement
 {
@@ -28,6 +29,12 @@ class ClosingTagsElement extends ContentElement
      *
      * @return string
      */
+    private function isBackendRequest(): bool
+    {
+        $request = System::getContainer()->get('request_stack')->getCurrentRequest();
+        return $request && $request->attributes->get('_scope') === 'backend';
+    }
+
     public function generate()
     {
         // Contao 5: use StringUtil::deserialize instead of deprecated global function
@@ -38,13 +45,14 @@ class ClosingTagsElement extends ContentElement
             $this->wt_closing_tags = [];
         }
 
-        if (defined('TL_MODE') && TL_MODE === 'BE') {
+        if ($this->isBackendRequest()) {
 
             $template = new BackendTemplate('be_wildcard_closing_tags');
             $template->wildcard = '### ' . $GLOBALS['TL_LANG']['CTE']['wt_closing_tags'][0] . ' (id:' . $this->id . ') ###';
 
             $template->tags = $this->wt_closing_tags;
-            $template->version = version_compare(VERSION, '3.5', '>') ? 'version-over-35' : 'version-35';
+            $ver = \defined('VERSION') ? \constant('VERSION') : '5.3';
+            $template->version = version_compare($ver, '3.5', '>') ? 'version-over-35' : 'version-35';
 
             return $template->parse();
         }

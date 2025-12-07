@@ -31,6 +31,7 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_opening_tags'] = [
                 'inputType' => 'multiColumnWizard',
                 'eval' => [
                     'tl_class' => 'attributes',
+                    'minCount' => 1,
                     'dragAndDrop' => true,
                     'allowHtml' => false,
                     'columnFields' => [
@@ -98,6 +99,7 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
                 'inputType' => 'multiColumnWizard',
                 'eval' => [
                     'tl_class' => 'attributes',
+                    'minCount' => 1,
                     'dragAndDrop' => true,
                     'allowHtml' => false,
                     'columnFields' => [
@@ -126,4 +128,3 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
     ],
     'sql' => 'blob NULL',
 ];
-

@@ -106,7 +106,6 @@ class ContentListener extends \tl_content
                 $this->setChildRecordClass($indent);
             }
         }
-
         // standard Contao child-record-callback
         return parent::addCteType($row);
     }
@@ -148,9 +147,39 @@ class ContentListener extends \tl_content
      */
     public function getTags()
     {
-        $tags = \Contao\StringUtil::trimsplit('><', \Contao\Config::get('wt_allowed_tags'));
-        $tags[0] = str_replace('<', '', $tags[0]);
-        $tags[count($tags) - 1] = str_replace('>', '', $tags[count($tags) - 1]);
+        $allowed = \Contao\Config::get('wt_allowed_tags');
+
+        // Fallbacks: legacy defaults or sane hardcoded defaults if settings are empty
+        if (!\is_string($allowed) || trim($allowed) === '') {
+            $allowed = $GLOBALS['TL_CONFIG']['wt_allowed_tags']
+                ?? '<div><span><article><aside><section><nav><header><footer><main>'
+                 . '<ul><ol><li><p><h1><h2><h3><h4><h5><h6>';
+        }
+
+        $parts = \Contao\StringUtil::trimsplit('><', $allowed);
+        if (empty($parts)) {
+            return array('div');
+        }
+
+        // Normalize by stripping leading/ending angle brackets
+        $parts[0] = str_replace('<', '', $parts[0]);
+        $parts[count($parts) - 1] = str_replace('>', '', $parts[count($parts) - 1]);
+
+        // Lowercase, trim, unique, filter empties
+        $tags = array();
+        foreach ($parts as $p) {
+            $t = strtolower(trim($p));
+            if ($t !== '' && !in_array($t, $tags, true)) {
+                $tags[] = $t;
+            }
+        }
+
+        // Ensure common tags exist to avoid “Unbekannte Option” for legacy content
+        foreach (array('div', 'span') as $ensure) {
+            if (!in_array($ensure, $tags, true)) {
+                $tags[] = $ensure;
+            }
+        }
 
         return $tags;
     }
@@ -176,7 +205,7 @@ class ContentListener extends \tl_content
                 FROM `tl_content`
                 WHERE pid = ? AND ptable = ? AND invisible != ? AND type IN ('wt_opening_tags','wt_closing_tags')
                 ")
-            ->execute(CURRENT_ID, $dc->parentTable, '1');
+            ->execute($dc->currentPid, $dc->parentTable, '1');
 
         if ($result->numRows === 0) {
 
@@ -196,9 +225,22 @@ class ContentListener extends \tl_content
 
         // ! do not set limit - validation needs all elements
 
-        $result = $stmt->execute(CURRENT_ID, $dc->parentTable);
+        $result = $stmt->execute($dc->currentPid, $dc->parentTable);
 
-        $statusTitle = $GLOBALS['TL_LANG']['MSC']['wt.statusTitle'];
+        // Ensure language keys exist to avoid notices on Contao 5 without extension translations
+        $langMSC = &$GLOBALS['TL_LANG']['MSC'];
+        if (!isset($langMSC['wt.statusTitle'])) { $langMSC['wt.statusTitle'] = 'Wrapper tags'; }
+        if (!isset($langMSC['wt.validationError'])) { $langMSC['wt.validationError'] = 'Validation error'; }
+        if (!isset($langMSC['wt.statusOk'])) { $langMSC['wt.statusOk'] = 'OK'; }
+        if (!isset($langMSC['wt.statusOpeningNoClosing'])) { $langMSC['wt.statusOpeningNoClosing'] = 'Opening tag %s (ID %s) not closed'; }
+        if (!isset($langMSC['wt.dataCorrupted'])) { $langMSC['wt.dataCorrupted'] = 'Data corrupted'; }
+        if (!isset($langMSC['wt.statusOpeningWrongPairingWithOther'])) { $langMSC['wt.statusOpeningWrongPairingWithOther'] = 'Opening %s (ID %s) wrong pairing with %s (ID %s)'; }
+        if (!isset($langMSC['wt.statusClosingNoOpening'])) { $langMSC['wt.statusClosingNoOpening'] = 'Closing %s (ID %s) without opening'; }
+        if (!isset($langMSC['wt.statusClosingWrongPairingWithOther'])) { $langMSC['wt.statusClosingWrongPairingWithOther'] = 'Closing %s (ID %s) wrong pairing with %s (ID %s)'; }
+        if (!isset($langMSC['wt.statusOpeningWrongPairing'])) { $langMSC['wt.statusOpeningWrongPairing'] = 'Opening %s (ID %s) wrong pairing with closing %s (ID %s)'; }
+        if (!isset($langMSC['wt.statusClosingWrongPairingNeedSplit'])) { $langMSC['wt.statusClosingWrongPairingNeedSplit'] = 'Closing element %s needs split with opening %s'; }
+
+        $statusTitle = $langMSC['wt.statusTitle'];
         $status = array();
 
         if ($result->numRows === 0) {
@@ -280,7 +322,7 @@ class ContentListener extends \tl_content
 
             // need to use ReflectionClass in order to get $dc->limit property
 
-            $reflectionClass = new ReflectionClass('DC_Table');
+            $reflectionClass = new ReflectionClass(get_class($dc));
             $reflectionProperty = $reflectionClass->getProperty('limit');
             $reflectionProperty->setAccessible(true);
             $limit = $reflectionProperty->getValue($dc);

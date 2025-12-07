@@ -1,0 +1,15 @@
+<div class="wt-closing-tags <?php echo $this->version ?>">
+  <div class="tl_gray">Wrapper tags (Closing tags)</div>
+  <?php if ($this->tags): ?>
+    <?php foreach ($this->tags as $tag): ?>
+      <div>&lt;/<?php echo $tag['tag'] ?>&gt;</div>
+    <?php endforeach ?>
+  <?php else: ?>
+    <div class="tl_red corrupted"><?php echo $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] ?></div>
+  <?php endif ?>
+
+  <?php if ($this->wildcard): ?>
+    <div class="tl_gray"><?php echo $this->wildcard ?></div>
+  <?php endif ?>
+</div>
+

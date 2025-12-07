@@ -1,4 +1,3 @@
 <?php foreach ($this->tags as $tag): ?>
     </<?php echo $tag['tag'] ?>>
 <?php endforeach; ?>
-

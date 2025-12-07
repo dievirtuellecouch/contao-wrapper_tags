@@ -13,6 +13,7 @@ namespace Zmyslny\WrapperTags\ContentElement;
 use Contao\BackendTemplate;
 use Contao\ContentElement;
 use Contao\StringUtil;
+use Contao\System;
 
 class CompleteTagsElement extends ContentElement
 {
@@ -28,6 +29,12 @@ class CompleteTagsElement extends ContentElement
      *
      * @return string
      */
+    private function isBackendRequest(): bool
+    {
+        $request = System::getContainer()->get('request_stack')->getCurrentRequest();
+        return $request && $request->attributes->get('_scope') === 'backend';
+    }
+
     public function generate()
     {
         $this->wt_complete_tags = StringUtil::deserialize($this->wt_complete_tags, true);
@@ -37,13 +44,14 @@ class CompleteTagsElement extends ContentElement
             $this->wt_complete_tags = [];
         }
 
-        if (defined('TL_MODE') && TL_MODE === 'BE') {
+        if ($this->isBackendRequest()) {
 
             $template = new BackendTemplate('be_wildcard_complete_tags');
             $template->wildcard = '### ' . $GLOBALS['TL_LANG']['CTE']['wt_complete_tags'][0] . ' (id:' . $this->id . ') ###';
 
             $template->tags = $this->wt_complete_tags;
-            $template->version = version_compare(VERSION, '3.5', '>') ? 'version-over-35' : 'version-35';
+            $ver = \defined('VERSION') ? \constant('VERSION') : '5.3';
+            $template->version = version_compare($ver, '3.5', '>') ? 'version-over-35' : 'version-35';
 
             return $template->parse();
         }
