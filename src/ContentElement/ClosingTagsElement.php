@@ -17,18 +17,8 @@ use Contao\System;
 
 class ClosingTagsElement extends ContentElement
 {
-    /**
-     * Template.
-     *
-     * @var string
-     */
     protected $strTemplate = 'ce_wt_closing_tags';
 
-    /**
-     * Display a wildcard in the back end.
-     *
-     * @return string
-     */
     private function isBackendRequest(): bool
     {
         $request = System::getContainer()->get('request_stack')->getCurrentRequest();
@@ -37,34 +27,27 @@ class ClosingTagsElement extends ContentElement
 
     public function generate()
     {
-        // Contao 5: use StringUtil::deserialize instead of deprecated global function
         $this->wt_closing_tags = StringUtil::deserialize($this->wt_closing_tags, true);
 
-        // Tags data is incorrect
         if (!is_array($this->wt_closing_tags)) {
             $this->wt_closing_tags = [];
         }
 
         if ($this->isBackendRequest()) {
-
             $template = new BackendTemplate('be_wildcard_closing_tags');
             $template->wildcard = '### ' . $GLOBALS['TL_LANG']['CTE']['wt_closing_tags'][0] . ' (id:' . $this->id . ') ###';
-
             $template->tags = $this->wt_closing_tags;
             $ver = \defined('VERSION') ? \constant('VERSION') : '5.3';
             $template->version = version_compare($ver, '3.5', '>') ? 'version-over-35' : 'version-35';
-
             return $template->parse();
         }
 
         return parent::generate();
     }
 
-    /**
-     * Compile element data.
-     */
     protected function compile()
     {
         $this->Template->tags = $this->wt_closing_tags;
     }
 }
+

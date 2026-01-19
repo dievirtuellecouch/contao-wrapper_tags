@@ -1,7 +1,5 @@
 <?php
 
-// DCA for tl_content (copied from legacy package)
-
 use Contao\Input;
 
 $GLOBALS['TL_DCA']['tl_content']['list']['sorting']['child_record_callback'] = ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onChildRecordCallback'];
@@ -128,3 +126,4 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
     ],
     'sql' => 'blob NULL',
 ];
+

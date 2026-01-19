@@ -1,29 +1,10 @@
-<div class="wt-complete-tags <?php echo $this->version ?>">
-  <div class="tl_gray">Wrapper tags (Complete tags)</div>
-  <?php if ($this->tags): ?>
+<div class="tl_content">
+  <h1 class="tl_wizard"><?= $this->wildcard ?></h1>
+  <?php if (!empty($this->tags)) : ?>
+    <ul>
     <?php foreach ($this->tags as $tag): ?>
-      <?php
-        $classes = trim((string)($tag['class'] ?? ''));
-        $attrStr = '';
-        if (!empty($tag['attributes']) && is_array($tag['attributes'])) {
-            $pairs = array();
-            foreach ($tag['attributes'] as $attribute) {
-                $n = trim((string)($attribute['name'] ?? ''));
-                $v = trim((string)($attribute['value'] ?? ''));
-                if ($n !== '' && $v !== '') { $pairs[] = $n . ':' . $v; }
-            }
-            if (!empty($pairs)) { $attrStr = ' ' . implode(' ', $pairs); }
-        }
-        $closing = empty($tag['void']) ? ' &lt;/' . $tag['tag'] . '&gt;' : '';
-      ?>
-      <div>&lt;<?php echo $tag['tag'] ?><?php if ($classes !== ''): ?>	class:<?php echo $classes ?><?php endif; ?><?php echo $attrStr ? '\t' . $attrStr : '' ?>&gt;<?php echo $closing ?></div>
-    <?php endforeach ?>
-  <?php else: ?>
-    <div class="tl_red corrupted"><?php echo $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] ?></div>
-  <?php endif ?>
-
-  <?php if ($this->wildcard): ?>
-    <div class="tl_gray"><?php echo $this->wildcard ?></div>
-  <?php endif ?>
+      <li>&lt;<?= $tag['tag'] ?><?= !empty($tag['class']) ? ' class=\"'.$tag['class'].'\"' : '' ?>&gt;<?= empty($tag['void']) ? '&lt;/'.$tag['tag'].'&gt;' : '' ?></li>
+    <?php endforeach; ?>
+    </ul>
+  <?php endif; ?>
 </div>
-

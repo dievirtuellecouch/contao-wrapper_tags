@@ -1,6 +1,6 @@
 <?php
-if ($this->tags) {
-    $tags = '';
+$tags = '';
+if (!empty($this->tags)) {
     foreach ($this->tags as $tag) {
         $tags .= '<' . $tag['tag'];
         if (isset($tag['attributes'])) {
@@ -8,7 +8,7 @@ if ($this->tags) {
                 $tags .= ' ' . $attribute['name'] . '="' . htmlspecialchars($attribute['value'], ENT_QUOTES) . '"';
             }
         }
-        if ($tag['class']) {
+        if (!empty($tag['class'])) {
             $tags .= ' class="' . htmlspecialchars($tag['class'], ENT_QUOTES) . '"';
         }
         $tags .= '>';

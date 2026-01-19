@@ -17,18 +17,8 @@ use Contao\System;
 
 class OpeningTagsElement extends ContentElement
 {
-    /**
-     * Template.
-     *
-     * @var string
-     */
     protected $strTemplate = 'ce_wt_opening_tags';
 
-    /**
-     * Display a wildcard in the back end.
-     *
-     * @return string
-     */
     private function isBackendRequest(): bool
     {
         $request = System::getContainer()->get('request_stack')->getCurrentRequest();
@@ -37,48 +27,108 @@ class OpeningTagsElement extends ContentElement
 
     public function generate()
     {
-        // Contao 5: use StringUtil::deserialize instead of deprecated global function
-        $this->wt_opening_tags = StringUtil::deserialize($this->wt_opening_tags, true);
-
-        // Tags data is incorrect
-        if (!is_array($this->wt_opening_tags)) {
-            $this->wt_opening_tags = [];
-        }
+        $this->wt_opening_tags = $this->normalizeTags($this->wt_opening_tags);
 
         if ($this->isBackendRequest()) {
-
             $template = new BackendTemplate('be_wildcard_opening_tags');
             $template->wildcard = '### ' . $GLOBALS['TL_LANG']['CTE']['wt_opening_tags'][0] . ' (id:' . $this->id . ') ###';
-
             $template->tags = $this->wt_opening_tags;
             $ver = \defined('VERSION') ? \constant('VERSION') : '5.3';
             $template->version = version_compare($ver, '3.5', '>') ? 'version-over-35' : 'version-35';
-
             return $template->parse();
         }
 
         return parent::generate();
     }
 
-    /**
-     * Compile element data.
-     */
     protected function compile()
     {
-        /** @var array $tags */
-        $tags = $this->wt_opening_tags;
+        $tags = $this->normalizeTags($this->wt_opening_tags);
 
-        // Compile insert tags in the attribute name
         foreach ($tags as $i => $tag) {
             if ($tag['attributes']) {
                 foreach ($tag['attributes'] as $t => $attribute) {
-                    $attribute['name'] = \Contao\System::getContainer()->get('contao.insert_tag.parser')->replace($attribute['name']);
-
+                    $attribute['name'] = System::getContainer()->get('contao.insert_tag.parser')->replace($attribute['name']);
                     $tags[$i]['attributes'][$t] = $attribute;
                 }
             }
         }
 
         $this->Template->tags = $tags;
+    }
+
+    /**
+     * Normalize tags structure from DB (serialized, JSON, or legacy forms).
+     */
+    private function normalizeTags($raw): array
+    {
+        $tags = StringUtil::deserialize($raw, true);
+
+        if (!is_array($tags) || (isset($tags['tag']) && is_string($tags['tag']))) {
+            $decoded = null;
+            if (is_string($raw)) {
+                $trim = ltrim($raw);
+                if ($trim !== '' && ($trim[0] === '[' || $trim[0] === '{')) {
+                    $decoded = json_decode($raw, true);
+                }
+            }
+            if (is_array($decoded)) {
+                $tags = $decoded;
+            } elseif (isset($tags['tag']) && is_string($tags['tag'])) {
+                $tags = [$tags];
+            }
+        }
+
+        if (!is_array($tags)) {
+            return [];
+        }
+
+        foreach ($tags as $i => $tag) {
+            $t = is_array($tag) ? $tag : [];
+            $name = isset($t['tag']) ? (string) $t['tag'] : '';
+            $class = isset($t['class']) ? (string) $t['class'] : '';
+            $attrs = $t['attributes'] ?? [];
+
+            // Support associative attributes name=>value
+            if (!is_array($attrs)) {
+                $attrs = [];
+            } elseif ($this->isAssoc($attrs)) {
+                $norm = [];
+                foreach ($attrs as $an => $av) {
+                    $norm[] = ['name' => (string) $an, 'value' => (string) $av];
+                }
+                $attrs = $norm;
+            }
+
+            // If class is empty but provided as attribute, pick it up
+            if ($class === '' && is_array($attrs)) {
+                foreach ($attrs as $k => $a) {
+                    if (isset($a['name']) && strtolower((string) $a['name']) === 'class') {
+                        $class = (string) ($a['value'] ?? '');
+                        unset($attrs[$k]);
+                        $attrs = array_values($attrs);
+                        break;
+                    }
+                }
+            }
+
+            $tags[$i] = [
+                'tag' => $name,
+                'class' => $class,
+                'attributes' => $attrs,
+            ];
+        }
+
+        return $tags;
+    }
+
+    private function isAssoc(array $arr): bool
+    {
+        foreach (array_keys($arr) as $k) {
+            if (!is_int($k)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
