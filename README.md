@@ -5,19 +5,22 @@ An extension for [Contao Open Source CMS](https://contao.org/en/)
 Provides content elements for building any html structure in an article without a need for using templates.
 
 ## System requirements
-- Contao 3.2.x - 3.5.x, 4.4+
-- PHP 5.6 - 7.x 
-
-Not tested with Contao 4.0 - 4.3 but probably works with them.
-Not tested with PHP &lt; 5.6 but probably works with few earlier versions.
+- Contao 5.3+
+- PHP 8.1+
 
 
 ## Installation
 
 ```bash
-  $ composer require zmyslny/contao-wrapper_tags
+composer require dvc/contao-wrapper_tags
 ```
-Using [Contao extension catalog](https://contao.org/en/extension-list/view/wrapper_tags.20000009.en.html "Contao extension catalog")
+
+After installation, run:
+
+```bash
+php vendor/bin/contao-console contao:migrate --with-deletes --no-interaction
+php vendor/bin/contao-console cache:clear
+```
 
 
 ## Building HTML structure

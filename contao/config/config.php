@@ -27,6 +27,5 @@ if (defined('TL_MODE') && TL_MODE === 'BE') {
         $GLOBALS['TL_CSS']['wt_css'] = '/bundles/zmyslnywrappertags/wrapper-tags-default-c35' . $min . '.css';
     }
 
-    $GLOBALS['TL_JAVASCRIPT']['wt_js'] = 'bundles/zmyslnywrappertags/wrapper-tags' . $min . '.js';
+    $GLOBALS['TL_JAVASCRIPT']['wt_js'] = '/bundles/zmyslnywrappertags/wrapper-tags' . $min . '.js';
 }
-

@@ -16,19 +16,31 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_opening_tags'] = [
     'save_callback' => [['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onSaveCallback']],
     'eval' => [
         'mandatory' => true,
-        'dragAndDrop' => true,
+        'minCount' => 1,
+        'maxCount' => 1,
+        'buttons' => [
+            'new' => false,
+            'delete' => false,
+            'move' => false,
+        ],
         'columnFields' => [
             'tag' => [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_tag'],
                 'inputType' => 'select',
                 'options_callback' => ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'getTags'],
+                'eval' => [
+                    'hideHead' => true,
+                    'style' => 'width:170px',
+                ],
             ],
             'attributes' => [
-                'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_attribute'],
+                'label' => ['', ''],
                 'exclude' => true,
                 'inputType' => 'multiColumnWizard',
                 'eval' => [
                     'tl_class' => 'attributes',
+                    'hideHead' => true,
+                    'style' => 'width:520px',
                     'minCount' => 1,
                     'dragAndDrop' => true,
                     'allowHtml' => false,
@@ -37,13 +49,21 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_opening_tags'] = [
                             'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_attribute_name'],
                             'inputType' => 'text',
                             'exclude' => true,
-                            'eval' => ['allowHtml' => false],
+                            'eval' => [
+                                'allowHtml' => false,
+                                'hideHead' => true,
+                                'style' => 'width:220px',
+                            ],
                         ],
                         'value' => [
                             'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_attribute_value'],
                             'inputType' => 'text',
                             'exclude' => true,
-                            'eval' => ['allowHtml' => false],
+                            'eval' => [
+                                'allowHtml' => false,
+                                'hideHead' => true,
+                                'style' => 'width:220px',
+                            ],
                         ],
                     ],
                 ],
@@ -52,7 +72,11 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_opening_tags'] = [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_class'],
                 'exclude' => true,
                 'inputType' => 'text',
-                'eval' => ['allowHtml' => false],
+                'eval' => [
+                    'allowHtml' => false,
+                    'hideHead' => true,
+                    'style' => 'width:200px',
+                ],
             ],
         ],
     ],
@@ -85,18 +109,28 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_tag'],
                 'inputType' => 'select',
                 'options_callback' => ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'getTags'],
+                'eval' => [
+                    'hideHead' => true,
+                    'style' => 'width:170px',
+                ],
             ],
             'void' => [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_void'],
                 'exclude' => true,
                 'inputType' => 'checkbox',
+                'eval' => [
+                    'hideHead' => true,
+                    'style' => 'width:80px',
+                ],
             ],
             'attributes' => [
-                'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_attribute'],
+                'label' => ['', ''],
                 'exclude' => true,
                 'inputType' => 'multiColumnWizard',
                 'eval' => [
                     'tl_class' => 'attributes',
+                    'hideHead' => true,
+                    'style' => 'width:460px',
                     'minCount' => 1,
                     'dragAndDrop' => true,
                     'allowHtml' => false,
@@ -105,13 +139,21 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
                             'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_attribute_name'],
                             'inputType' => 'text',
                             'exclude' => true,
-                            'eval' => ['allowHtml' => false],
+                            'eval' => [
+                                'allowHtml' => false,
+                                'hideHead' => true,
+                                'style' => 'width:200px',
+                            ],
                         ],
                         'value' => [
                             'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_attribute_value'],
                             'inputType' => 'text',
                             'exclude' => true,
-                            'eval' => ['allowHtml' => false],
+                            'eval' => [
+                                'allowHtml' => false,
+                                'hideHead' => true,
+                                'style' => 'width:200px',
+                            ],
                         ],
                     ],
                 ],
@@ -120,10 +162,13 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_class'],
                 'exclude' => true,
                 'inputType' => 'text',
-                'eval' => ['allowHtml' => false],
+                'eval' => [
+                    'allowHtml' => false,
+                    'hideHead' => true,
+                    'style' => 'width:180px',
+                ],
             ],
         ],
     ],
     'sql' => 'blob NULL',
 ];
-

@@ -1,0 +1,10 @@
+/* Minimal backend styles for wrapper tags (default theme) */
+.clear-indent.wrapper-tag{position:relative}
+.clear-indent.wrapper-tag::before{content:'';display:block;height:0}
+.indent{border-left:2px solid #c0c0c0;padding-left:8px}
+.indent-tags-closing-middle{border-color:#f90}
+.colorize-wrapper-tags .indent_0{border-color:#6c8ae4}
+.colorize-wrapper-tags .indent_1{border-color:#42b983}
+.colorize-wrapper-tags .indent_2{border-color:#f39c12}
+.colorize-wrapper-tags .indent_3{border-color:#e74c3c}
+.colorize-wrapper-tags .indent_4{border-color:#9b59b6}
