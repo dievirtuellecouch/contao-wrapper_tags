@@ -4,45 +4,43 @@ namespace Zmyslny\WrapperTags\EventListener;
 
 use Contao\DataContainer;
 use ReflectionClass;
+use Zmyslny\WrapperTags\Util\TagNormalizer;
 
 class ContentListener extends \tl_content
 {
     public function onSaveCallback($data, DataContainer $dc)
     {
-        $tags = \Contao\StringUtil::deserialize($data, true);
+        $tags = TagNormalizer::normalize($data, ($dc->field ?? '') === 'wt_complete_tags');
 
         foreach ($tags as &$tag) {
-            if ('' !== $tag['class']) {
-                $tag['class'] = trim($tag['class']);
-            }
-            if ($tag['attributes']) {
-                $attributes = array();
-                $names = array();
-                foreach ($tag['attributes'] as $attribute) {
-                    $attribute['name'] = preg_replace('/\s+/', '', $attribute['name']);
-                    $attribute['value'] = trim($attribute['value']);
-                    if ('' !== $attribute['name']) {
-                        if (isset($names[$attribute['name']])) {
-                            throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeNameAlreadyUsed'], $attribute['name']));
-                        }
-                        $names[$attribute['name']] = true;
-                        if (!preg_match('/^[A-Za-z]+[\w\-\:\.]*(\{{2}[\w\:]+\}{2}[\w\-\:\.]*){0,10}$/', $attribute['name'])) {
-                            throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeName'], $attribute['name']));
-                        }
-                        if ('' === $attribute['value']) {
-                            throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeNameWithoutValue'], $attribute['name']));
-                        }
-                    } else {
-                        if ('' !== $attribute['value']) {
-                            throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeValueWithoutName'], $attribute['value']));
-                        }
+            $attributes = array();
+            $names = array();
+
+            foreach ($tag['attributes'] as $attribute) {
+                if ('' !== $attribute['name']) {
+                    if (isset($names[$attribute['name']])) {
+                        throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeNameAlreadyUsed'], $attribute['name']));
                     }
-                    if ('' !== $attribute['value'] && '' !== $attribute['name']) {
-                        $attributes[] = $attribute;
+
+                    $names[$attribute['name']] = true;
+
+                    if (!preg_match('/^[A-Za-z]+[\w\-\:\.]*(\{{2}[\w\:]+\}{2}[\w\-\:\.]*){0,10}$/', $attribute['name'])) {
+                        throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeName'], $attribute['name']));
                     }
+
+                    if ('' === $attribute['value']) {
+                        throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeNameWithoutValue'], $attribute['name']));
+                    }
+                } elseif ('' !== $attribute['value']) {
+                    throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeValueWithoutName'], $attribute['value']));
                 }
-                $tag['attributes'] = $attributes;
+
+                if ('' !== $attribute['value'] && '' !== $attribute['name']) {
+                    $attributes[] = $attribute;
+                }
             }
+
+            $tag['attributes'] = $attributes;
         }
 
         return serialize($tags);
@@ -51,7 +49,7 @@ class ContentListener extends \tl_content
     public function onChildRecordCallback($row)
     {
         if (isset($GLOBALS['WrapperTags']['indents']) && is_array($GLOBALS['WrapperTags']['indents'])) {
-            $indent = $GLOBALS['WrapperTags']['indents'][$row['id']];
+            $indent = $GLOBALS['WrapperTags']['indents'][$row['id']] ?? null;
             if (null !== $indent) {
                 $this->setChildRecordClass($indent);
             }
@@ -63,7 +61,8 @@ class ContentListener extends \tl_content
     {
         $wrapperTagClass = $indent['type'] === 'wt_opening_tags' || $indent['type'] === 'wt_closing_tags' ? 'wrapper-tag' : '';
         $middleClass = (isset($indent['middle'])) ? ' indent-tags-closing-middle' : '';
-        $GLOBALS['TL_DCA']['tl_content']['list']['sorting']['child_record_class'] = $indent['value'] > 0 ? 'clear-indent ' . $wrapperTagClass . ' indent indent_' . $indent['value'] . $middleClass . ' ' . $indent['colorize-class'] : 'clear-indent ' . $wrapperTagClass . ' indent_0 ' . $middleClass;
+        $colorizeClass = $indent['colorize-class'] ?? '';
+        $GLOBALS['TL_DCA']['tl_content']['list']['sorting']['child_record_class'] = $indent['value'] > 0 ? 'clear-indent ' . $wrapperTagClass . ' indent indent_' . $indent['value'] . $middleClass . ' ' . $colorizeClass : 'clear-indent ' . $wrapperTagClass . ' indent_0 ' . $middleClass;
     }
 
     public function onClosingTagsColumnsCallback()
@@ -151,6 +150,7 @@ class ContentListener extends \tl_content
 
         $indentLevel = 0;
         $openStack = array();
+        $GLOBALS['WrapperTags']['indents'] = array();
         $status = array();
         $hasError = false;
         $hideStatus = \Contao\Config::get('wt_hide_validation_status');
@@ -159,8 +159,8 @@ class ContentListener extends \tl_content
         }
 
         foreach ($result->fetchAllAssoc() as $cte) {
-            $isWrapperStart = in_array($cte['type'], $GLOBALS['TL_WRAPPERS']['start']);
-            $isWrapperStop = in_array($cte['type'], $GLOBALS['TL_WRAPPERS']['stop']);
+            $isWrapperStart = in_array($cte['type'], $GLOBALS['TL_WRAPPERS']['start'] ?? array(), true);
+            $isWrapperStop = in_array($cte['type'], $GLOBALS['TL_WRAPPERS']['stop'] ?? array(), true);
             $isVisible = $cte['invisible'] !== '1';
             if ($isWrapperStart) {
                 $this->wrapperStart($cte, $isVisible, $statusTitle, $openStack, $indentLevel, $hasError, $status);
@@ -174,7 +174,7 @@ class ContentListener extends \tl_content
         if (!$hasError && count($openStack)) {
             for ($i = count($openStack) - 1; $i >= 0; --$i) {
                 if ($openStack[$i]['type'] === 'wt_opening_tags') {
-                    $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningNoClosing'], $openStack[$i]['tags'][count($openStack[$i]['tags']) - 1]['tag'], $openStack[$i]['id']) . '</span>';
+                    $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningNoClosing'], $openStack[$i]['tag'], $openStack[$i]['id']) . '</span>';
                     $hasError = true;
                     break;
                 }
@@ -210,20 +210,26 @@ class ContentListener extends \tl_content
                     }
                 }
             } else {
-                $this->setChildRecordClass($GLOBALS['WrapperTags']['indents'][key($GLOBALS['WrapperTags']['indents'])]);
+                if ($GLOBALS['WrapperTags']['indents'] !== array()) {
+                    $this->setChildRecordClass($GLOBALS['WrapperTags']['indents'][key($GLOBALS['WrapperTags']['indents'])]);
+                }
             }
         }
 
-        end($GLOBALS['WrapperTags']['indents']);
-        $lastKey = key($GLOBALS['WrapperTags']['indents']);
-        $lastIndent = $GLOBALS['WrapperTags']['indents'][$lastKey];
-        $reversed = array_reverse($GLOBALS['WrapperTags']['indents'], true);
-        foreach ($reversed as $id => &$indent) {
-            $nowIndent = $indent;
-            $indent = $lastIndent + array('colorize-class' => ($useColors ? 'colorize-wrapper-tags' : ''));
-            $lastIndent = $nowIndent;
+        if ($GLOBALS['WrapperTags']['indents'] !== array()) {
+            end($GLOBALS['WrapperTags']['indents']);
+            $lastKey = key($GLOBALS['WrapperTags']['indents']);
+            $lastIndent = $GLOBALS['WrapperTags']['indents'][$lastKey];
+            $reversed = array_reverse($GLOBALS['WrapperTags']['indents'], true);
+
+            foreach ($reversed as $id => &$indent) {
+                $nowIndent = $indent;
+                $indent = $lastIndent + array('colorize-class' => ($useColors ? 'colorize-wrapper-tags' : ''));
+                $lastIndent = $nowIndent;
+            }
+
+            $GLOBALS['WrapperTags']['indents'] = array_reverse($reversed, true);
         }
-        $GLOBALS['WrapperTags']['indents'] = array_reverse($reversed, true);
 
         return $add + $status;
     }
@@ -243,19 +249,22 @@ class ContentListener extends \tl_content
             }
         } else {
             if ($isVisible) {
-                $startTags = \Contao\StringUtil::deserialize($cte['wt_opening_tags'], true);
-                if (!$hasError && !is_array($startTags)) {
+                $startTags = TagNormalizer::normalize($cte['wt_opening_tags']);
+                if (!$hasError && $startTags === array()) {
                     $status[$statusTitle] = '<span class="tl_red">' . $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] . '</span>';
                     $hasError = true;
                 }
-                $openStack[] = array(
-                    'id' => $cte['id'],
-                    'type' => 'wt_opening_tags',
-                    'tags' => $startTags,
-                    'count' => count($startTags)
-                );
+
+                foreach ($startTags as $tag) {
+                    $openStack[] = array(
+                        'id' => $cte['id'],
+                        'type' => 'wt_opening_tags',
+                        'tag' => $tag['tag']
+                    );
+                }
+
                 $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
-                ++$indentLevel;
+                $indentLevel += count($startTags);
             } else {
                 $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
             }
@@ -266,30 +275,67 @@ class ContentListener extends \tl_content
     {
         if ('wt_closing_tags' !== $cte['type']) {
             if ($isVisible) {
-                $openingTags = $openStack[count($openStack) - 1];
-                if (!$hasError && $openingTags !== null && $openingTags['type'] === 'wt_opening_tags') {
-                    $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningWrongPairingWithOther'], $openingTags['tags'][count($openingTags['tags']) - 1]['tag'], $openingTags['id'], $GLOBALS['TL_LANG']['CTE'][$cte['type']][0], $cte['id']) . '</span>';
+                $openingTags = end($openStack);
+
+                if (!$hasError && is_array($openingTags) && $openingTags['type'] === 'wt_opening_tags') {
+                    $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningWrongPairingWithOther'], $openingTags['tag'], $openingTags['id'], $GLOBALS['TL_LANG']['CTE'][$cte['type']][0], $cte['id']) . '</span>';
                     $hasError = true;
                 }
-                array_pop($openStack);
-                --$indentLevel;
+
+                if ($openingTags !== false) {
+                    array_pop($openStack);
+                    $indentLevel = max(0, $indentLevel - 1);
+                }
             }
             $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
         } else {
             $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => ($indentLevel > 1 ? $indentLevel - 1 : 0));
+
             if (!$isVisible) {
                 $GLOBALS['WrapperTags']['indents'][$cte['id']]['value'] += $indentLevel > 0 ? 1 : 0;
             } else {
-                $closingTags = \Contao\StringUtil::deserialize($cte['wt_closing_tags'], true);
-                if (!$hasError && !is_array($closingTags)) {
+                $closingTags = TagNormalizer::normalize($cte['wt_closing_tags']);
+
+                if (!$hasError && $closingTags === array()) {
                     $status[$statusTitle] = '<span class="tl_red">' . $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] . '</span>';
                     $hasError = true;
                 }
-                if (count($openStack) === 0) {
-                    // handled below
+
+                foreach ($closingTags as $closingTag) {
+                    $openingTags = end($openStack);
+
+                    if ($openingTags === false) {
+                        if (!$hasError) {
+                            $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusClosingNoOpening'], $closingTag['tag'], $cte['id']) . '</span>';
+                            $hasError = true;
+                        }
+
+                        break;
+                    }
+
+                    if ($openingTags['type'] !== 'wt_opening_tags') {
+                        if (!$hasError) {
+                            $openingLabel = $GLOBALS['TL_LANG']['CTE'][$openingTags['type']][0] ?? $openingTags['type'];
+                            $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusClosingWrongPairingWithOther'], $closingTag['tag'], $cte['id'], $openingLabel, $openingTags['id']) . '</span>';
+                            $hasError = true;
+                        }
+
+                        break;
+                    }
+
+                    if ($openingTags['tag'] !== $closingTag['tag']) {
+                        if (!$hasError) {
+                            $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningWrongPairing'], $openingTags['tag'], $openingTags['id'], $closingTag['tag'], $cte['id']) . '</span>';
+                            $hasError = true;
+                        }
+
+                        break;
+                    }
+
+                    array_pop($openStack);
+                    $indentLevel = max(0, $indentLevel - 1);
                 }
             }
-            // Simplified pairing logic as per vendor code (omitted for brevity)
         }
     }
 }

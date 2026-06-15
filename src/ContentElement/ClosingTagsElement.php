@@ -12,8 +12,8 @@ namespace Zmyslny\WrapperTags\ContentElement;
 
 use Contao\BackendTemplate;
 use Contao\ContentElement;
-use Contao\StringUtil;
 use Contao\System;
+use Zmyslny\WrapperTags\Util\TagNormalizer;
 
 class ClosingTagsElement extends ContentElement
 {
@@ -27,11 +27,7 @@ class ClosingTagsElement extends ContentElement
 
     public function generate()
     {
-        $this->wt_closing_tags = StringUtil::deserialize($this->wt_closing_tags, true);
-
-        if (!is_array($this->wt_closing_tags)) {
-            $this->wt_closing_tags = [];
-        }
+        $this->wt_closing_tags = TagNormalizer::normalize($this->wt_closing_tags);
 
         if ($this->isBackendRequest()) {
             $template = new BackendTemplate('be_wildcard_closing_tags');
@@ -50,4 +46,3 @@ class ClosingTagsElement extends ContentElement
         $this->Template->tags = $this->wt_closing_tags;
     }
 }
-
