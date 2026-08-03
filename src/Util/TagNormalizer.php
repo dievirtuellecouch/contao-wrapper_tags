@@ -8,24 +8,33 @@ use Contao\StringUtil;
 
 final class TagNormalizer
 {
+    private const TAG_NAME_PATTERN = '/^[a-z][a-z0-9:-]*$/';
+
+    private const ATTRIBUTE_NAME_PATTERN = '/^[A-Za-z]+[\w\-:.]*(\{{2}[\w:]+\}{2}[\w\-:.]*){0,10}$/';
+
+    /**
+     * @return list<array{tag: string, class: string, attributes: list<array{name: string, value: string}>, void?: bool}>
+     */
     public static function normalize(mixed $raw, bool $includeVoid = false): array
     {
-        $tags = StringUtil::deserialize($raw, true);
+        $tags = null;
 
-        if (!\is_array($tags) || (isset($tags['tag']) && \is_string($tags['tag']))) {
-            $decoded = null;
+        if (\is_string($raw)) {
+            $trimmed = ltrim($raw);
 
-            if (\is_string($raw)) {
-                $trimmed = ltrim($raw);
+            if ('' !== $trimmed && ('[' === $trimmed[0] || '{' === $trimmed[0])) {
+                $decoded = json_decode($raw, true);
 
-                if ($trimmed !== '' && ($trimmed[0] === '[' || $trimmed[0] === '{')) {
-                    $decoded = json_decode($raw, true);
+                if (\is_array($decoded)) {
+                    $tags = $decoded;
                 }
             }
+        }
 
-            if (\is_array($decoded)) {
-                $tags = $decoded;
-            } elseif (\is_array($tags) && isset($tags['tag']) && \is_string($tags['tag'])) {
+        $tags ??= StringUtil::deserialize($raw, true);
+
+        if (!\is_array($tags) || (isset($tags['tag']) && \is_string($tags['tag']))) {
+            if (\is_array($tags) && isset($tags['tag']) && \is_string($tags['tag'])) {
                 $tags = [$tags];
             }
         }
@@ -51,8 +60,8 @@ final class TagNormalizer
             $attributes = self::normalizeAttributes($tag['attributes'] ?? []);
 
             foreach ($attributes as $index => $attribute) {
-                if ($class === '' && strtolower($attribute['name']) === 'class') {
-                    $class = $attribute['value'];
+                if (strtolower($attribute['name']) === 'class') {
+                    $class = trim($class . ' ' . $attribute['value']);
                     unset($attributes[$index]);
                 }
             }
@@ -71,6 +80,42 @@ final class TagNormalizer
         }
 
         return $normalized;
+    }
+
+    /**
+     * Normalize stored data and remove unsafe tag or attribute names before rendering.
+     *
+     * @return list<array{tag: string, class: string, attributes: list<array{name: string, value: string}>, void?: bool}>
+     */
+    public static function normalizeForRendering(mixed $raw, bool $includeVoid = false): array
+    {
+        $tags = self::normalize($raw, $includeVoid);
+
+        foreach ($tags as $tagIndex => &$tag) {
+            if (!self::isValidTagName($tag['tag'])) {
+                unset($tags[$tagIndex]);
+
+                continue;
+            }
+
+            $tag['attributes'] = array_values(array_filter(
+                $tag['attributes'],
+                static fn (array $attribute): bool => self::isValidAttributeName($attribute['name']),
+            ));
+        }
+        unset($tag);
+
+        return array_values($tags);
+    }
+
+    public static function isValidTagName(string $name): bool
+    {
+        return 1 === preg_match(self::TAG_NAME_PATTERN, $name);
+    }
+
+    public static function isValidAttributeName(string $name): bool
+    {
+        return 1 === preg_match(self::ATTRIBUTE_NAME_PATTERN, $name);
     }
 
     private static function normalizeAttributes(mixed $attributes): array
@@ -97,7 +142,7 @@ final class TagNormalizer
                 continue;
             }
 
-            $name = preg_replace('/\s+/', '', (string) ($attribute['name'] ?? ''));
+            $name = trim((string) ($attribute['name'] ?? ''));
             $value = trim((string) ($attribute['value'] ?? ''));
 
             if ($name === '' && $value === '') {

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 $GLOBALS['TL_DCA']['tl_settings']['palettes']['default'] .= ';{wrapper_tags_legend},wt_use_colors,wt_hide_validation_status,wt_allowed_tags';
 
 $GLOBALS['TL_DCA']['tl_settings']['fields']['wt_use_colors'] = [
@@ -19,4 +21,3 @@ $GLOBALS['TL_DCA']['tl_settings']['fields']['wt_allowed_tags'] = [
     'inputType' => 'text',
     'eval' => ['tl_class' => 'w50', 'allowHtml' => true],
 ];
-

@@ -1,5 +1,14 @@
 # wrapper_tags change log
 
+### 5.7.0 (2026-08-03)
+
+* require Contao 5.7 and PHP 8.3+
+* replace legacy content element classes with autowired fragment controllers
+* replace all legacy `.html5` templates with Twig templates
+* add migration from `wt_*` element types to the Contao 5.7 `wrapper_tag_*` types
+* modernize service loading, DCA callbacks, backend assets, and database access
+* harden tag and attribute rendering and add integration tests
+
 ### 2.1.0 (2018-02-14)
 
 * Complete Tags content element

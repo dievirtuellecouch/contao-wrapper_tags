@@ -1,341 +1,423 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Zmyslny\WrapperTags\EventListener;
 
+use Contao\Config;
+use Contao\ContentModel;
+use Contao\Controller;
+use Contao\CoreBundle\DependencyInjection\Attribute\AsCallback;
+use Contao\CoreBundle\Framework\ContaoFramework;
 use Contao\DataContainer;
-use ReflectionClass;
+use Contao\Date;
+use Contao\Image;
+use Contao\MemberGroupModel;
+use Contao\StringUtil;
+use Doctrine\DBAL\Connection;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Zmyslny\WrapperTags\Util\TagNormalizer;
+use Zmyslny\WrapperTags\Validation\WrapperStructureValidator;
+use Zmyslny\WrapperTags\WrapperTagType;
 
-class ContentListener extends \tl_content
+final class ContentListener
 {
-    public function onSaveCallback($data, DataContainer $dc)
+    public function __construct(
+        private readonly Connection $connection,
+        private readonly ContaoFramework $framework,
+        private readonly TranslatorInterface $translator,
+        private readonly WrapperStructureValidator $structureValidator,
+    ) {
+    }
+
+    #[AsCallback(table: 'tl_content', target: 'fields.wt_opening_tags.save', priority: 100)]
+    #[AsCallback(table: 'tl_content', target: 'fields.wt_complete_tags.save', priority: 100)]
+    public function onSaveCallback(mixed $value, DataContainer $dataContainer): string
     {
-        $tags = TagNormalizer::normalize($data, ($dc->field ?? '') === 'wt_complete_tags');
+        $tags = TagNormalizer::normalize(
+            $value,
+            'wt_complete_tags' === ($dataContainer->field ?? null),
+        );
 
         foreach ($tags as &$tag) {
-            $attributes = array();
-            $names = array();
-
-            foreach ($tag['attributes'] as $attribute) {
-                if ('' !== $attribute['name']) {
-                    if (isset($names[$attribute['name']])) {
-                        throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeNameAlreadyUsed'], $attribute['name']));
-                    }
-
-                    $names[$attribute['name']] = true;
-
-                    if (!preg_match('/^[A-Za-z]+[\w\-\:\.]*(\{{2}[\w\:]+\}{2}[\w\-\:\.]*){0,10}$/', $attribute['name'])) {
-                        throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeName'], $attribute['name']));
-                    }
-
-                    if ('' === $attribute['value']) {
-                        throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeNameWithoutValue'], $attribute['name']));
-                    }
-                } elseif ('' !== $attribute['value']) {
-                    throw new \Exception(sprintf($GLOBALS['TL_LANG']['MSC']['wt.errorAttributeValueWithoutName'], $attribute['value']));
-                }
-
-                if ('' !== $attribute['value'] && '' !== $attribute['name']) {
-                    $attributes[] = $attribute;
-                }
+            if (!TagNormalizer::isValidTagName($tag['tag'])) {
+                throw new \InvalidArgumentException($this->translateError('wt.errorTagName', [$tag['tag']]));
             }
 
-            $tag['attributes'] = $attributes;
+            $attributeNames = [];
+
+            foreach ($tag['attributes'] as $attribute) {
+                $name = $attribute['name'];
+                $normalizedName = strtolower($name);
+
+                if ('' === $name && '' !== $attribute['value']) {
+                    throw new \InvalidArgumentException(
+                        $this->translateError('wt.errorAttributeValueWithoutName', [$attribute['value']]),
+                    );
+                }
+
+                if (isset($attributeNames[$normalizedName])) {
+                    throw new \InvalidArgumentException(
+                        $this->translateError('wt.errorAttributeNameAlreadyUsed', [$name]),
+                    );
+                }
+
+                if (!TagNormalizer::isValidAttributeName($name)) {
+                    throw new \InvalidArgumentException($this->translateError('wt.errorAttributeName', [$name]));
+                }
+
+                if ('' === $attribute['value']) {
+                    throw new \InvalidArgumentException(
+                        $this->translateError('wt.errorAttributeNameWithoutValue', [$name]),
+                    );
+                }
+
+                $attributeNames[$normalizedName] = true;
+            }
         }
+        unset($tag);
 
         return serialize($tags);
     }
 
-    public function onChildRecordCallback($row)
+    #[AsCallback(table: 'tl_content', target: 'list.sorting.child_record', priority: 100)]
+    public function onChildRecordCallback(array $row): array|string
     {
-        if (isset($GLOBALS['WrapperTags']['indents']) && is_array($GLOBALS['WrapperTags']['indents'])) {
-            $indent = $GLOBALS['WrapperTags']['indents'][$row['id']] ?? null;
-            if (null !== $indent) {
-                $this->setChildRecordClass($indent);
-            }
+        $indent = $GLOBALS['WrapperTags']['indents'][(int) $row['id']] ?? null;
+
+        if (\is_array($indent)) {
+            $this->setChildRecordClass($indent);
         }
-        return parent::addCteType($row);
+
+        return $this->generateChildRecord($row);
     }
 
-    protected function setChildRecordClass($indent)
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    public function onClosingTagsColumnsCallback(): array
     {
-        $wrapperTagClass = $indent['type'] === 'wt_opening_tags' || $indent['type'] === 'wt_closing_tags' ? 'wrapper-tag' : '';
-        $middleClass = (isset($indent['middle'])) ? ' indent-tags-closing-middle' : '';
-        $colorizeClass = $indent['colorize-class'] ?? '';
-        $GLOBALS['TL_DCA']['tl_content']['list']['sorting']['child_record_class'] = $indent['value'] > 0 ? 'clear-indent ' . $wrapperTagClass . ' indent indent_' . $indent['value'] . $middleClass . ' ' . $colorizeClass : 'clear-indent ' . $wrapperTagClass . ' indent_0 ' . $middleClass;
-    }
-
-    public function onClosingTagsColumnsCallback()
-    {
-        return array(
-            'tag' => array
-            (
+        return [
+            'tag' => [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_tag'],
                 'inputType' => 'select',
-                'options_callback' => array('Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'getTags'),
-            )
-        );
+                'options_callback' => [self::class, 'getTags'],
+            ],
+        ];
     }
 
-    public function getTags()
+    /**
+     * @return list<string>
+     */
+    public function getTags(): array
     {
-        $allowed = \Contao\Config::get('wt_allowed_tags');
-        if (!\is_string($allowed) || trim($allowed) === '') {
-            $allowed = $GLOBALS['TL_CONFIG']['wt_allowed_tags']
-                ?? '<div><span><article><aside><section><nav><header><footer><main>'
-                 . '<ul><ol><li><p><h1><h2><h3><h4><h5><h6>';
+        $config = $this->framework->getAdapter(Config::class);
+        $allowedTags = $config->get('wt_allowed_tags');
+
+        if (!\is_string($allowedTags) || '' === trim($allowedTags)) {
+            $allowedTags = $GLOBALS['TL_CONFIG']['wt_allowed_tags'] ?? '<div><span>';
         }
-        $parts = \Contao\StringUtil::trimsplit('><', $allowed);
-        if (empty($parts)) {
-            return array('div');
+
+        $tags = [];
+
+        foreach (StringUtil::trimsplit('><', $allowedTags) as $tag) {
+            $tag = strtolower(trim($tag, "<> \t\n\r\0\x0B"));
+
+            if (!TagNormalizer::isValidTagName($tag) || \in_array($tag, $tags, true)) {
+                continue;
+            }
+
+            $tags[] = $tag;
         }
-        $parts[0] = str_replace('<', '', $parts[0]);
-        $parts[count($parts) - 1] = str_replace('>', '', $parts[count($parts) - 1]);
-        $tags = array();
-        foreach ($parts as $p) {
-            $t = strtolower(trim($p));
-            if ($t !== '' && !in_array($t, $tags, true)) {
-                $tags[] = $t;
+
+        foreach (['div', 'span'] as $requiredTag) {
+            if (!\in_array($requiredTag, $tags, true)) {
+                $tags[] = $requiredTag;
             }
         }
-        foreach (array('div', 'span') as $ensure) {
-            if (!in_array($ensure, $tags, true)) {
-                $tags[] = $ensure;
-            }
-        }
+
         return $tags;
     }
 
-    public function onHeaderCallback($add, DataContainer $dc)
+    #[AsCallback(table: 'tl_content', target: 'list.sorting.header', priority: 100)]
+    public function onHeaderCallback(array $header, DataContainer $dataContainer): array
     {
-        // Gracefully skip if DB columns are not yet added (pre-migration)
-        if (!\is_object($this->Database) 
-            || !$this->Database->fieldExists('wt_opening_tags', 'tl_content') 
-            || !$this->Database->fieldExists('wt_closing_tags', 'tl_content')) {
-            return $add;
+        if (!$this->hasWrapperTagColumns()) {
+            return $header;
         }
 
-        $result = $this->Database
-            ->prepare('SELECT id FROM `tl_content` WHERE pid = ? AND ptable = ? AND invisible != ? AND type IN (\'wt_opening_tags\',\'wt_closing_tags\')')
-            ->execute($dc->currentPid, $dc->parentTable, '1');
+        $parentId = (int) (($dataContainer->currentPid ?? null) ?: ($dataContainer->id ?? 0));
+        $parentTable = (string) (($dataContainer->parentTable ?? null) ?: 'tl_article');
 
-        if ($result->numRows === 0) {
-            return $add;
+        if (0 === $parentId) {
+            return $header;
         }
 
-        $query = 'SELECT id, type, wt_opening_tags, wt_closing_tags, invisible FROM `tl_content` WHERE pid = ? AND ptable = ? ORDER BY sorting ASC';
+        $wrapperCount = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM tl_content WHERE pid = ? AND ptable = ? AND invisible != ? AND type IN (?, ?)',
+            [$parentId, $parentTable, '1', WrapperTagType::START, WrapperTagType::STOP],
+        );
 
-        $stmt = $this->Database->prepare($query);
-        $result = $stmt->execute($dc->currentPid, $dc->parentTable);
-
-        $langMSC = &$GLOBALS['TL_LANG']['MSC'];
-        $langMSC['wt.statusTitle'] = $langMSC['wt.statusTitle'] ?? 'Wrapper tags';
-        $langMSC['wt.validationError'] = $langMSC['wt.validationError'] ?? 'Validation error';
-        $langMSC['wt.statusOk'] = $langMSC['wt.statusOk'] ?? 'OK';
-        $langMSC['wt.statusOpeningNoClosing'] = $langMSC['wt.statusOpeningNoClosing'] ?? 'Opening tag %s (ID %s) not closed';
-        $langMSC['wt.dataCorrupted'] = $langMSC['wt.dataCorrupted'] ?? 'Data corrupted';
-        $langMSC['wt.statusOpeningWrongPairingWithOther'] = $langMSC['wt.statusOpeningWrongPairingWithOther'] ?? 'Opening %s (ID %s) wrong pairing with %s (ID %s)';
-        $langMSC['wt.statusClosingNoOpening'] = $langMSC['wt.statusClosingNoOpening'] ?? 'Closing %s (ID %s) without opening';
-        $langMSC['wt.statusClosingWrongPairingWithOther'] = $langMSC['wt.statusClosingWrongPairingWithOther'] ?? 'Closing %s (ID %s) wrong pairing with %s (ID %s)';
-        $langMSC['wt.statusOpeningWrongPairing'] = $langMSC['wt.statusOpeningWrongPairing'] ?? 'Opening %s (ID %s) wrong pairing with closing %s (ID %s)';
-        $langMSC['wt.statusClosingWrongPairingNeedSplit'] = $langMSC['wt.statusClosingWrongPairingNeedSplit'] ?? 'Closing element %s needs split with opening %s';
-
-        $statusTitle = $langMSC['wt.statusTitle'];
-        $status = array();
-
-        if ($result->numRows === 0) {
-            $status[$statusTitle] = '<span class="tl_red">' . $GLOBALS['TL_LANG']['MSC']['wt.validationError'] . '</span>';
-            return $add + $status;
+        if (0 === $wrapperCount) {
+            return $header;
         }
 
-        $indentLevel = 0;
-        $openStack = array();
-        $GLOBALS['WrapperTags']['indents'] = array();
-        $status = array();
-        $hasError = false;
-        $hideStatus = \Contao\Config::get('wt_hide_validation_status');
-        if ($hideStatus) {
-            $hasError = true;
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, type, wt_opening_tags, wt_closing_tags, invisible
+             FROM tl_content
+             WHERE pid = ? AND ptable = ?
+             ORDER BY sorting ASC',
+            [$parentId, $parentTable],
+        );
+
+        $validation = $this->structureValidator->validate(
+            $rows,
+            array_values(array_unique($GLOBALS['TL_WRAPPERS']['start'] ?? [])),
+            array_values(array_unique($GLOBALS['TL_WRAPPERS']['stop'] ?? [])),
+        );
+
+        $indents = $validation['indents'];
+        $useColors = (bool) $this->framework->getAdapter(Config::class)->get('wt_use_colors');
+        $offset = $this->getListOffset($dataContainer);
+        $firstIndent = array_values($indents)[$offset] ?? reset($indents);
+
+        if (\is_array($firstIndent)) {
+            $this->setChildRecordClass($firstIndent + [
+                'colorize-class' => $useColors ? 'colorize-wrapper-tags' : '',
+            ]);
         }
 
-        foreach ($result->fetchAllAssoc() as $cte) {
-            $isWrapperStart = in_array($cte['type'], $GLOBALS['TL_WRAPPERS']['start'] ?? array(), true);
-            $isWrapperStop = in_array($cte['type'], $GLOBALS['TL_WRAPPERS']['stop'] ?? array(), true);
-            $isVisible = $cte['invisible'] !== '1';
-            if ($isWrapperStart) {
-                $this->wrapperStart($cte, $isVisible, $statusTitle, $openStack, $indentLevel, $hasError, $status);
-            } elseif ($isWrapperStop) {
-                $this->wrapperStop($cte, $isVisible, $statusTitle, $openStack, $indentLevel, $hasError, $status);
-            } else {
-                $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
-            }
+        $GLOBALS['WrapperTags']['indents'] = $this->offsetIndentsForChildRecordCallback($indents, $useColors);
+
+        if ((bool) $this->framework->getAdapter(Config::class)->get('wt_hide_validation_status')) {
+            return $header;
         }
 
-        if (!$hasError && count($openStack)) {
-            for ($i = count($openStack) - 1; $i >= 0; --$i) {
-                if ($openStack[$i]['type'] === 'wt_opening_tags') {
-                    $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningNoClosing'], $openStack[$i]['tag'], $openStack[$i]['id']) . '</span>';
-                    $hasError = true;
-                    break;
-                }
-            }
-        }
+        $title = $this->translator->trans('MSC.wt.statusTitle', [], 'contao_default');
+        $status = null === $validation['error']
+            ? $this->translator->trans('MSC.wt.statusOk', [], 'contao_default')
+            : '<span class="tl_red">' . $this->translateError(
+                $validation['error']['key'],
+                $validation['error']['parameters'],
+            ) . '</span>';
 
-        if (!$hasError) {
-            $status[$statusTitle] = $GLOBALS['TL_LANG']['MSC']['wt.statusOk'];
-        }
-        if ($hideStatus) {
-            $status = array();
-        }
-
-        $useColors = \Contao\Config::get('wt_use_colors');
-
-        if (class_exists('ReflectionClass')) {
-            $reflectionClass = new ReflectionClass(get_class($dc));
-            $reflectionProperty = $reflectionClass->getProperty('limit');
-            $reflectionProperty->setAccessible(true);
-            $limit = $reflectionProperty->getValue($dc);
-            if (strlen($limit)) {
-                $limit = explode(',', $limit);
-                $offset = (int)$limit[0];
-                if ($offset > 0) {
-                    $index = 1;
-                    $firstElementOnPage = $offset + 1;
-                    foreach ($GLOBALS['WrapperTags']['indents'] as $indent) {
-                        if ($index === $firstElementOnPage) {
-                            $this->setChildRecordClass($indent + array('colorize-class' => ($useColors ? 'colorize-wrapper-tags' : '')));
-                            break;
-                        }
-                        ++$index;
-                    }
-                }
-            } else {
-                if ($GLOBALS['WrapperTags']['indents'] !== array()) {
-                    $this->setChildRecordClass($GLOBALS['WrapperTags']['indents'][key($GLOBALS['WrapperTags']['indents'])]);
-                }
-            }
-        }
-
-        if ($GLOBALS['WrapperTags']['indents'] !== array()) {
-            end($GLOBALS['WrapperTags']['indents']);
-            $lastKey = key($GLOBALS['WrapperTags']['indents']);
-            $lastIndent = $GLOBALS['WrapperTags']['indents'][$lastKey];
-            $reversed = array_reverse($GLOBALS['WrapperTags']['indents'], true);
-
-            foreach ($reversed as $id => &$indent) {
-                $nowIndent = $indent;
-                $indent = $lastIndent + array('colorize-class' => ($useColors ? 'colorize-wrapper-tags' : ''));
-                $lastIndent = $nowIndent;
-            }
-
-            $GLOBALS['WrapperTags']['indents'] = array_reverse($reversed, true);
-        }
-
-        return $add + $status;
+        return $header + [$title => $status];
     }
 
-    protected function wrapperStart($cte, $isVisible, $statusTitle, &$openStack, &$indentLevel, &$hasError, &$status)
+    /**
+     * @param array{type: string, value: int, middle?: bool, colorize-class?: string} $indent
+     */
+    private function setChildRecordClass(array $indent): void
     {
-        if ('wt_opening_tags' !== $cte['type']) {
-            if ($isVisible) {
-                $openStack[] = array(
-                    'id' => $cte['id'],
-                    'type' => $cte['type']
+        $classes = [
+            'clear-indent',
+            'indent_' . max(0, $indent['value']),
+        ];
+
+        if (\in_array($indent['type'], [WrapperTagType::START, WrapperTagType::STOP], true)) {
+            $classes[] = 'wrapper-tag';
+        }
+
+        if ($indent['value'] > 0) {
+            $classes[] = 'indent';
+        }
+
+        if ($indent['middle'] ?? false) {
+            $classes[] = 'indent-tags-closing-middle';
+        }
+
+        if ('' !== ($indent['colorize-class'] ?? '')) {
+            $classes[] = $indent['colorize-class'];
+        }
+
+        $GLOBALS['TL_DCA']['tl_content']['list']['sorting']['child_record_class'] = implode(' ', $classes);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array{string, string, string}
+     */
+    private function generateChildRecord(array $row): array
+    {
+        $type = $this->generateContentTypeLabel($row);
+        $model = $this->framework->createInstance(ContentModel::class);
+        $model->setRow($row);
+
+        try {
+            $preview = StringUtil::insertTagToSrc(
+                $this->framework->getAdapter(Controller::class)->getContentElement($model),
+            );
+        } catch (\Throwable $throwable) {
+            $preview = '<p class="tl_error">' . StringUtil::specialchars($throwable->getMessage()) . '</p>';
+        }
+
+        if (!empty($row['sectionHeadline'])) {
+            $sectionHeadline = StringUtil::deserialize($row['sectionHeadline'], true);
+
+            if (!empty($sectionHeadline['value']) && !empty($sectionHeadline['unit'])) {
+                $preview = sprintf(
+                    '<%1$s>%2$s</%1$s>%3$s',
+                    $sectionHeadline['unit'],
+                    $sectionHeadline['value'],
+                    $preview,
                 );
-                $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
-                ++$indentLevel;
-            } else {
-                $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
             }
-        } else {
-            if ($isVisible) {
-                $startTags = TagNormalizer::normalize($cte['wt_opening_tags']);
-                if (!$hasError && $startTags === array()) {
-                    $status[$statusTitle] = '<span class="tl_red">' . $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] . '</span>';
-                    $hasError = true;
-                }
+        }
 
-                foreach ($startTags as $tag) {
-                    $openStack[] = array(
-                        'id' => $cte['id'],
-                        'type' => 'wt_opening_tags',
-                        'tag' => $tag['tag']
-                    );
-                }
+        if ('' === trim((string) preg_replace('/<!--(.|\s)*?-->/', '', $preview))) {
+            $preview = '';
+        }
 
-                $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
-                $indentLevel += count($startTags);
-            } else {
-                $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
+        return [
+            $type,
+            $preview,
+            !empty($row['invisible']) ? 'unpublished' : 'published',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function generateContentTypeLabel(array $row): string
+    {
+        $translationId = 'CTE.' . $row['type'] . '.0';
+        $type = $this->translator->trans($translationId, [], 'contao_default');
+
+        if ($translationId === $type) {
+            $type = (string) $row['type'];
+        }
+
+        if (!empty($row['title'])) {
+            $type = $row['title'] . ' <span class="tl_gray">[' . $type . ']</span>';
+        }
+
+        if ('alias' === $row['type']) {
+            $type .= ' ID ' . ($row['cteAlias'] ?? 0);
+        }
+
+        if (!empty($row['protected'])) {
+            $groupIds = array_map('intval', StringUtil::deserialize($row['groups'] ?? null, true));
+            $groupNames = [];
+
+            if (false !== ($guestIndex = array_search(-1, $groupIds, true))) {
+                $groupNames[] = $this->translator->trans('MSC.guests', [], 'contao_default');
+                unset($groupIds[$guestIndex]);
             }
+
+            if ([] !== $groupIds) {
+                $memberGroupAdapter = $this->framework->getAdapter(MemberGroupModel::class);
+
+                if (null !== ($groups = $memberGroupAdapter->findMultipleByIds($groupIds))) {
+                    $groupNames = [...$groupNames, ...$groups->fetchEach('name')];
+                }
+            }
+
+            $type = $this->framework->getAdapter(Image::class)->getHtml('protected.svg') . ' ' . $type;
+            $type .= ' <span class="tl_gray">(' . $this->translator->trans(
+                'MSC.protected',
+                [],
+                'contao_default',
+            ) . ($groupNames ? ': ' . implode(', ', $groupNames) : '') . ')</span>';
+        }
+
+        if ('headline' === $row['type'] && \is_array($headline = StringUtil::deserialize($row['headline'] ?? null))) {
+            $type .= ' (' . ($headline['unit'] ?? '') . ')';
+        }
+
+        $config = $this->framework->getAdapter(Config::class);
+        $date = $this->framework->getAdapter(Date::class);
+        $start = $row['start'] ?? null;
+        $stop = $row['stop'] ?? null;
+
+        if ($start && $stop) {
+            $type .= ' <span class="tl_gray">(' . $this->translator->trans(
+                'MSC.showFromTo',
+                [$date->parse($config->get('datimFormat'), $start), $date->parse($config->get('datimFormat'), $stop)],
+                'contao_default',
+            ) . ')</span>';
+        } elseif ($start) {
+            $type .= ' <span class="tl_gray">(' . $this->translator->trans(
+                'MSC.showFrom',
+                [$date->parse($config->get('datimFormat'), $start)],
+                'contao_default',
+            ) . ')</span>';
+        } elseif ($stop) {
+            $type .= ' <span class="tl_gray">(' . $this->translator->trans(
+                'MSC.showTo',
+                [$date->parse($config->get('datimFormat'), $stop)],
+                'contao_default',
+            ) . ')</span>';
+        }
+
+        return $type;
+    }
+
+    private function hasWrapperTagColumns(): bool
+    {
+        try {
+            $schemaManager = $this->connection->createSchemaManager();
+
+            if (!$schemaManager->tablesExist(['tl_content'])) {
+                return false;
+            }
+
+            $columns = $schemaManager->listTableColumns('tl_content');
+
+            return isset($columns['wt_opening_tags'], $columns['wt_closing_tags']);
+        } catch (\Throwable) {
+            return false;
         }
     }
 
-    protected function wrapperStop($cte, $isVisible, $statusTitle, &$openStack, &$indentLevel, &$hasError, &$status)
+    private function getListOffset(DataContainer $dataContainer): int
     {
-        if ('wt_closing_tags' !== $cte['type']) {
-            if ($isVisible) {
-                $openingTags = end($openStack);
+        try {
+            $property = (new \ReflectionObject($dataContainer))->getProperty('limit');
+            $limit = (string) $property->getValue($dataContainer);
 
-                if (!$hasError && is_array($openingTags) && $openingTags['type'] === 'wt_opening_tags') {
-                    $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningWrongPairingWithOther'], $openingTags['tag'], $openingTags['id'], $GLOBALS['TL_LANG']['CTE'][$cte['type']][0], $cte['id']) . '</span>';
-                    $hasError = true;
-                }
-
-                if ($openingTags !== false) {
-                    array_pop($openStack);
-                    $indentLevel = max(0, $indentLevel - 1);
-                }
+            if ('' === $limit) {
+                return 0;
             }
-            $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => $indentLevel);
-        } else {
-            $GLOBALS['WrapperTags']['indents'][$cte['id']] = array('type' => $cte['type'], 'value' => ($indentLevel > 1 ? $indentLevel - 1 : 0));
 
-            if (!$isVisible) {
-                $GLOBALS['WrapperTags']['indents'][$cte['id']]['value'] += $indentLevel > 0 ? 1 : 0;
-            } else {
-                $closingTags = TagNormalizer::normalize($cte['wt_closing_tags']);
-
-                if (!$hasError && $closingTags === array()) {
-                    $status[$statusTitle] = '<span class="tl_red">' . $GLOBALS['TL_LANG']['MSC']['wt.dataCorrupted'] . '</span>';
-                    $hasError = true;
-                }
-
-                foreach ($closingTags as $closingTag) {
-                    $openingTags = end($openStack);
-
-                    if ($openingTags === false) {
-                        if (!$hasError) {
-                            $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusClosingNoOpening'], $closingTag['tag'], $cte['id']) . '</span>';
-                            $hasError = true;
-                        }
-
-                        break;
-                    }
-
-                    if ($openingTags['type'] !== 'wt_opening_tags') {
-                        if (!$hasError) {
-                            $openingLabel = $GLOBALS['TL_LANG']['CTE'][$openingTags['type']][0] ?? $openingTags['type'];
-                            $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusClosingWrongPairingWithOther'], $closingTag['tag'], $cte['id'], $openingLabel, $openingTags['id']) . '</span>';
-                            $hasError = true;
-                        }
-
-                        break;
-                    }
-
-                    if ($openingTags['tag'] !== $closingTag['tag']) {
-                        if (!$hasError) {
-                            $status[$statusTitle] = '<span class="tl_red">' . sprintf($GLOBALS['TL_LANG']['MSC']['wt.statusOpeningWrongPairing'], $openingTags['tag'], $openingTags['id'], $closingTag['tag'], $cte['id']) . '</span>';
-                            $hasError = true;
-                        }
-
-                        break;
-                    }
-
-                    array_pop($openStack);
-                    $indentLevel = max(0, $indentLevel - 1);
-                }
-            }
+            return max(0, (int) explode(',', $limit, 2)[0]);
+        } catch (\ReflectionException) {
+            return 0;
         }
+    }
+
+    /**
+     * @param array<int, array{type: string, value: int, middle?: bool}> $indents
+     *
+     * @return array<int, array{type: string, value: int, middle?: bool, colorize-class?: string}>
+     */
+    private function offsetIndentsForChildRecordCallback(array $indents, bool $useColors): array
+    {
+        if ([] === $indents) {
+            return [];
+        }
+
+        $nextIndent = end($indents);
+        $reversed = array_reverse($indents, true);
+
+        foreach ($reversed as $id => $indent) {
+            $currentIndent = $indent;
+            $reversed[$id] = $nextIndent + [
+                'colorize-class' => $useColors ? 'colorize-wrapper-tags' : '',
+            ];
+            $nextIndent = $currentIndent;
+        }
+
+        return array_reverse($reversed, true);
+    }
+
+    /**
+     * @param list<int|string> $parameters
+     */
+    private function translateError(string $key, array $parameters): string
+    {
+        $message = $this->translator->trans('MSC.' . $key, [], 'contao_default');
+
+        return [] === $parameters ? $message : sprintf($message, ...$parameters);
     }
 }

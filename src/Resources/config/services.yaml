@@ -1,0 +1,28 @@
+services:
+  _defaults:
+    autowire: true
+    autoconfigure: true
+    public: false
+
+  Zmyslny\WrapperTags\:
+    resource: '../../'
+    exclude:
+      - '../../ContaoManager'
+      - '../../DependencyInjection'
+      - '../../Resources'
+      - '../../Util'
+      - '../../WrapperTagType.php'
+      - '../../ZmyslnyWrapperTagsBundle.php'
+
+  Zmyslny\WrapperTags\EventListener\ContentListener:
+    public: true
+
+  Zmyslny\WrapperTags\Migration\WrapperTagsTypeMigration:
+    autoconfigure: false
+    tags:
+      - { name: contao.migration, priority: 20 }
+
+  Zmyslny\WrapperTags\Migration\WrapperTagsClassMigration:
+    autoconfigure: false
+    tags:
+      - { name: contao.migration, priority: 0 }

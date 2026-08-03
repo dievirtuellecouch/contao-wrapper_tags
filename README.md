@@ -1,101 +1,63 @@
-wrapper_tags 
-===============================
-An extension for [Contao Open Source CMS](https://contao.org/en/)
- 
-Provides content elements for building any html structure in an article without a need for using templates.
+# Contao Wrapper Tags
 
-## System requirements
-- Contao 5.3+
-- PHP 8.1+
+Content elements for building semantic HTML structures inside Contao articles without custom PHP templates.
 
+Version 5.7 targets Contao 5.7 and provides three Twig-based content elements:
+
+- `wrapper_tag_start` for one or more opening tags
+- `wrapper_tag_stop` for one or more closing tags
+- `wrapper_tag_complete` for complete or void tags
+
+## Requirements
+
+- PHP 8.3 or newer
+- Contao 5.7
+- MultiColumnWizard 3.6 or newer
 
 ## Installation
 
 ```bash
-composer require dvc/contao-wrapper_tags
+composer require dvc/contao-wrapper_tags:^5.7
+php vendor/bin/contao-console contao:migrate --no-interaction
+php vendor/bin/contao-console cache:clear
+php vendor/bin/contao-console assets:install
 ```
 
-After installation, run:
+Review the migration output first on production systems. Database deletes are not required by this bundle; do not add `--with-deletes` for this installation.
+
+## Upgrade from 1.0.x
+
+The included migration maps the legacy content element types automatically:
+
+| Legacy type | Contao 5.7 type |
+| --- | --- |
+| `wt_opening_tags` | `wrapper_tag_start` |
+| `wt_closing_tags` | `wrapper_tag_stop` |
+| `wt_complete_tags` | `wrapper_tag_complete` |
+
+The existing fields `wt_opening_tags`, `wt_closing_tags`, and `wt_complete_tags` remain unchanged. Existing content is therefore retained.
+
+## Features
+
+- Configurable list of allowed HTML tags
+- Multiple HTML attributes and CSS classes per tag
+- Insert tags in attribute names and values
+- Backend validation for mismatched opening and closing tags
+- Colored nesting and indentation in the backend article view
+- Twig frontend and editor-view templates
+- Migration of legacy content element type names and CSS classes
+
+## Tests
+
+After installing the package in a Contao project, run:
 
 ```bash
-php vendor/bin/contao-console contao:migrate --with-deletes --no-interaction
-php vendor/bin/contao-console cache:clear
+php bundles/contao-wrapper_tags/tests/run.php
+php bundles/contao-wrapper_tags/tests/render.php
+php vendor/bin/contao-console lint:container
+php vendor/bin/contao-console lint:twig
 ```
 
+## License
 
-## Building HTML structure
-
-All just by clicking.
-
-### Use `Opening tags` element allows to add multiple tags at once. 
-
-Every tag can have any desire attribute. Insert tags are allowed to form attributes names & values.
-
-![Opening tags](docs/wrapper_tags-opening_multi.jpg "Opening tags")
-
-The code result in the front end:
-
-```html
-<div class="big-font" id="container-1" data-person="chef-12" page-5="profile">
-<span class="red">
-```
-
-### Use `Closing tags` content element to close HTML tags.
-
-![Closing tags](docs/wrapper_tags-closing.jpg "Closing tags")
-
-The code result in the front end:
-
-```html
-</div>
-</span>
-```
-
-### Use `Complete tags` content element to add complete HTML tags.
-
-![Closing tags](docs/wrapper_tags-complete.jpg "Closing tags")
-
-The code result in the front end:
-
-```html
-<div id="ajax-data"></div>
-<img src="files/website/1.jpg">
-```
-
-### You will be notified of any possible error in the structure you have built.
-
-![Show case with error](docs/error.jpg "Show case with error")
-
-### The elements behave as the wrapper elements.
-
-They are indented and specially colored at deeper levels.
-
-![Show case](docs/show-case.jpg "Show case")
-
-The code result in the front end:
-
-```html
-<div id="container-1" data-person="chef-12" page-5="profile" class="big-font">
-    <div class="red">
-        <h1 class="ce_headline">Hello</h1>
-        <div id="ajax-data"></div>
-        <img src="files/website/1.jpg">
-        <article>
-            <div>
-                <span data-date="13/02/2018">
-                    <h1 class="ce_headline">Very nice plugin</h1>
-                </span>
-            </div>
-        </article>
-    </div>
-</div>
-```
-
-### The indents and colors are preserved even in the paging mode.
-![Paging](docs/paging.jpg "Paging")
-
-### Settings
-![Settings](docs/tl_settings.jpg "Settings")
-
-## Copyright
-Created and maintained by [Mike](http://contao-developer.pl).
+LGPL-3.0-or-later

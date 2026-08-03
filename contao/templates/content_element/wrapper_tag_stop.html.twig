@@ -1,0 +1,18 @@
+{% trans_default_domain 'contao_default' %}
+
+{% if as_editor_view %}
+    <div class="tl_content">
+        <h1 class="tl_wizard">### {{ ('CTE.' ~ type ~ '.0')|trans }} (ID: {{ data.id }}) ###</h1>
+        {% if tags %}
+            <ul>
+                {% for tag in tags %}
+                    <li>&lt;/{{ tag.tag }}&gt;</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+{% else %}
+    {%- for tag in tags -%}
+        </{{ tag.tag }}>
+    {%- endfor -%}
+{% endif %}

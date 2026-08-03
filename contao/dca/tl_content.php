@@ -1,19 +1,17 @@
 <?php
 
-use Contao\Input;
+declare(strict_types=1);
 
-$GLOBALS['TL_DCA']['tl_content']['list']['sorting']['child_record_callback'] = ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onChildRecordCallback'];
-$GLOBALS['TL_DCA']['tl_content']['list']['sorting']['header_callback'] = ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onHeaderCallback'];
+use Zmyslny\WrapperTags\EventListener\ContentListener;
 
-$GLOBALS['TL_DCA']['tl_content']['palettes']['wt_opening_tags'] = '{type_legend},type;{wt_legend},wt_opening_tags;{template_legend:hide},customTpl;{invisible_legend:hide},invisible,start,stop';
-$GLOBALS['TL_DCA']['tl_content']['palettes']['wt_closing_tags'] = '{type_legend},type;{wt_legend},wt_closing_tags;{template_legend:hide},customTpl;{invisible_legend:hide},invisible,start,stop';
-$GLOBALS['TL_DCA']['tl_content']['palettes']['wt_complete_tags'] = '{type_legend},type;{wt_legend},wt_complete_tags;{template_legend:hide},customTpl;{invisible_legend:hide},invisible,start,stop';
+$GLOBALS['TL_DCA']['tl_content']['palettes']['wrapper_tag_start'] = '{type_legend},type;{wt_legend},wt_opening_tags;{template_legend:hide},customTpl;{invisible_legend:hide},invisible,start,stop';
+$GLOBALS['TL_DCA']['tl_content']['palettes']['wrapper_tag_stop'] = '{type_legend},type;{wt_legend},wt_closing_tags;{template_legend:hide},customTpl;{invisible_legend:hide},invisible,start,stop';
+$GLOBALS['TL_DCA']['tl_content']['palettes']['wrapper_tag_complete'] = '{type_legend},type;{wt_legend},wt_complete_tags;{template_legend:hide},customTpl;{invisible_legend:hide},invisible,start,stop';
 
 $GLOBALS['TL_DCA']['tl_content']['fields']['wt_opening_tags'] = [
     'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_opening_tags'],
     'exclude' => true,
     'inputType' => 'multiColumnWizard',
-    'save_callback' => [['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onSaveCallback']],
     'eval' => [
         'mandatory' => true,
         'minCount' => 1,
@@ -27,7 +25,7 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_opening_tags'] = [
             'tag' => [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_tag'],
                 'inputType' => 'select',
-                'options_callback' => ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'getTags'],
+                'options_callback' => [ContentListener::class, 'getTags'],
                 'eval' => [
                     'hideHead' => true,
                     'style' => 'width:170px',
@@ -89,7 +87,7 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_closing_tags'] = [
     'inputType' => 'multiColumnWizard',
     'eval' => [
         'mandatory' => true,
-        'columnsCallback' => ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onClosingTagsColumnsCallback'],
+        'columnsCallback' => [ContentListener::class, 'onClosingTagsColumnsCallback'],
         'buttons' => ['new' => false],
         'dragAndDrop' => true,
     ],
@@ -100,7 +98,6 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
     'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_complete_tags'],
     'exclude' => true,
     'inputType' => 'multiColumnWizard',
-    'save_callback' => [['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'onSaveCallback']],
     'eval' => [
         'mandatory' => true,
         'dragAndDrop' => true,
@@ -108,7 +105,7 @@ $GLOBALS['TL_DCA']['tl_content']['fields']['wt_complete_tags'] = [
             'tag' => [
                 'label' => &$GLOBALS['TL_LANG']['tl_content']['wt_tag'],
                 'inputType' => 'select',
-                'options_callback' => ['Zmyslny\\WrapperTags\\EventListener\\ContentListener', 'getTags'],
+                'options_callback' => [ContentListener::class, 'getTags'],
                 'eval' => [
                     'hideHead' => true,
                     'style' => 'width:170px',

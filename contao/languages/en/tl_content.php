@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 $GLOBALS['TL_LANG']['tl_content']['wt_opening_tags'] = array('Opening tag', 'Please choose one html tag and set its attributes.');
 $GLOBALS['TL_LANG']['tl_content']['wt_closing_tags'] = array('Closing tags', 'Please choose html tags.');
 $GLOBALS['TL_LANG']['tl_content']['wt_complete_tags'] = array('Complete tags', 'Please choose html tags and set their attributes. Remark: a void tag example is <img> - it does not need to be closed to be correct (in HTML5 syntax).');
