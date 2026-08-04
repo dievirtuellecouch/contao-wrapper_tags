@@ -14,7 +14,8 @@ use Zmyslny\WrapperTags\EventListener\ContentListener;
 use Zmyslny\WrapperTags\WrapperTagType;
 
 $projectDirectory = dirname(__DIR__, 3);
-require $projectDirectory . '/vendor/autoload.php';
+$composerLoader = require $projectDirectory . '/vendor/autoload.php';
+$composerLoader->addPsr4('Zmyslny\\WrapperTags\\', \dirname(__DIR__) . '/src/', true);
 
 $_SERVER['DISABLE_HTTP_CACHE'] = '1';
 $kernel = ContaoKernel::fromInput($projectDirectory, new ArrayInput([]));
@@ -151,8 +152,8 @@ if (false !== $wrapperRow) {
         throw new RuntimeException('Backend wrapper structure validation did not produce a result.');
     }
 
-    if ([] === $listener->onChildRecordCallback($wrapperRow)) {
-        throw new RuntimeException('Backend wrapper child record rendering returned no output.');
+    if ([] === $listener->onLabelCallback($wrapperRow, '', $dataContainer)) {
+        throw new RuntimeException('Backend wrapper label rendering returned no output.');
     }
 }
 

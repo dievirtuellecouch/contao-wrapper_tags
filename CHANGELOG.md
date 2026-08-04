@@ -1,5 +1,11 @@
 # wrapper_tags change log
 
+### 5.7.1 (2026-08-04)
+
+* fix backend content element labels rendering as `Array` in Contao 5.7
+* replace the deprecated `child_record_callback` with the Contao 5.7 label callback
+* keep the former callback method as a compatibility shim for extensions
+
 ### 5.7.0 (2026-08-03)
 
 * require Contao 5.7 and PHP 8.3+

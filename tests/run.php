@@ -18,7 +18,12 @@ $autoloadCandidates = [
 
 foreach ($autoloadCandidates as $autoload) {
     if (is_file($autoload)) {
-        require_once $autoload;
+        $composerLoader = require $autoload;
+
+        if ($composerLoader instanceof Composer\Autoload\ClassLoader) {
+            $composerLoader->addPsr4('Zmyslny\\WrapperTags\\', \dirname(__DIR__) . '/src/', true);
+        }
+
         break;
     }
 }
@@ -204,6 +209,27 @@ $tests['validates and serializes backend widget input'] = static function () use
     }
 
     throw new RuntimeException('Duplicate backend attributes were accepted.');
+};
+
+$tests['uses the Contao 5.7 record label callback'] = static function () use ($assertSame): void {
+    $method = new ReflectionMethod(ContentListener::class, 'onLabelCallback');
+    $callbacks = array_map(
+        static fn (ReflectionAttribute $attribute): object => $attribute->newInstance(),
+        $method->getAttributes(Contao\CoreBundle\DependencyInjection\Attribute\AsCallback::class),
+    );
+
+    $assertSame(1, count($callbacks), 'The backend label callback was not registered exactly once.');
+    $assertSame(
+        'list.label.label',
+        $callbacks[0]->target ?? null,
+        'The deprecated child_record_callback is still registered.',
+    );
+    $assertSame(
+        [],
+        (new ReflectionMethod(ContentListener::class, 'onChildRecordCallback'))
+            ->getAttributes(Contao\CoreBundle\DependencyInjection\Attribute\AsCallback::class),
+        'The compatibility method must not be registered as a DCA callback.',
+    );
 };
 
 $tests['migrates legacy element types transactionally'] = static function () use ($assertSame): void {

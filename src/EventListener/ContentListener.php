@@ -80,15 +80,27 @@ final class ContentListener
         return serialize($tags);
     }
 
-    #[AsCallback(table: 'tl_content', target: 'list.sorting.child_record', priority: 100)]
-    public function onChildRecordCallback(array $row): array|string
+    #[AsCallback(table: 'tl_content', target: 'list.label.label', priority: 100)]
+    public function onLabelCallback(array $row, string $label, DataContainer $dataContainer): array|string
     {
+        if ('tl_theme' === ($dataContainer->parentTable ?? null)) {
+            return $this->generateContentTypeLabel($row);
+        }
+
         $indent = $GLOBALS['WrapperTags']['indents'][(int) $row['id']] ?? null;
 
         if (\is_array($indent)) {
             $this->setChildRecordClass($indent);
         }
 
+        return $this->generateChildRecord($row);
+    }
+
+    /**
+     * @deprecated Kept for extensions calling the former callback method directly.
+     */
+    public function onChildRecordCallback(array $row): array|string
+    {
         return $this->generateChildRecord($row);
     }
 
